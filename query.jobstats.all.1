@@ -1,0 +1,1 @@
+influx -database telegraf -host influxdbhost -precision rfc3339 -execute "select * from lustre2 where jobid = 'rztrona-2415759' order by time desc limit 1"

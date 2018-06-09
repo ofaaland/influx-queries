@@ -1,0 +1,20 @@
+timespan="1h"
+mdtfield="jobstats_mkdir"
+ostfield="jobstats_read_bytes"
+servertype="mdt"
+
+if [[ $# -gt 0 ]]; then
+  servertype=$1
+fi
+
+for x in 1; do
+  # Fetch jobids from MDTs
+  if [[ $servertype = "mdt" ]] || [[ $servertype = "both" ]]; then
+    influx -database telegraf -host influxdbhost -precision rfc3339 -execute "select jobid from (select jobid,max(${mdtfield}) as discard from lustre2 where time > now() - ${timespan} group by jobid)" | tail -n +4
+  fi
+  
+  # Fetch jobids from OSTs
+  if [[ $servertype = "ost" ]] || [[ $servertype = "both" ]]; then
+    influx -database telegraf -host influxdbhost -precision rfc3339 -execute "select jobid from (select jobid,max(${ostfield}) as discard from lustre2 where time > now() - ${timespan} group by jobid)" | tail -n +4
+  fi
+done | sort -u

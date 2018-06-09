@@ -1,0 +1,31 @@
+timespan="1h"
+influx_cmd="influx -database telegraf -host influxdbhost -precision rfc3339 -execute"
+jobstats_fields="jobstats_open jobstats_close jobstats_getattr"
+
+# MDT data
+#
+# Concerns:
+# (1) The below query produces N-1 rates, where N is the number of raw
+# measurements in the database.  This occurs because it calculates the
+# non_negative_derivative() by first calculating the difference between two
+# successfive measurements, and it does not assume a 0 preceeds the first
+# measurement.  It's possible there is a query trick like a subselect, that can
+# alter this behavior.  Needs research.
+#
+# Notes:
+# Field "name" holds the name of the Lustre target from which the measurement
+# was taken.  The "GROUP BY \"name\"" clause is required to force influxdb to
+# use the correct pair of measurements when it calculates the difference
+# produced by non_negative_derivative().
+
+# Raw data
+#field_clause=$(echo $jobstats_fields | sed 's/ /, /g')
+#$influx_cmd "select jobid,\"name\",${field_clause} from lustre2 where time > now() - ${timespan} group by \"name\"",jobid
+
+# Rates
+field_clause=""
+for raw_name in ${jobstats_fields}; do
+  rate_name=$(echo $raw_name | sed "s/jobstats_//; s/$/_rate/")
+  field_clause="${field_clause}, non_negative_derivative(${raw_name},1m) as ${rate_name}"
+done
+$influx_cmd "select last(jobid)${field_clause} from lustre2 where time > now() - ${timespan} group by \"name\"",jobid
