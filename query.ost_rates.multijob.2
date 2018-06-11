@@ -13,6 +13,17 @@ jobstats_fields="jobstats_write_bytes jobstats_write_calls"
 # measurement.  It's possible there is a query trick like a subselect, that can
 # alter this behavior.  Needs research.
 #
+# (2) It apears to be impossible to get influxdb to include the jobid and
+# lustre target \"name\" as fields in each row.  It cannot be done by
+# specifying them directly as non-aggregate fields are not allowed in queries
+# using group by; and last() and other aggregation functions operate ONLY on
+# field keys, not tag keys (see for example
+# https://docs.influxdata.com/influxdb/v1.5/query_language/functions/#last).
+# Using a subquery e.g.
+# "select jobid,fubar_rate from (select derivative(fubar) # as fubar_rate group by jobid)"
+# does not work because fubar_rate is for some reason not available to the
+# outer query and those fields are NULL or 0 depending on fill.
+#
 # Notes:
 # Field "name" holds the name of the Lustre target from which the measurement
 # was taken.  The "GROUP BY \"name\"" clause is required to force influxdb to
@@ -29,4 +40,5 @@ for raw_name in ${jobstats_fields}; do
   rate_name=$(echo $raw_name | sed "s/jobstats_//; s/$/_rate/")
   field_clause="${field_clause}, non_negative_derivative(${raw_name},1m) as ${rate_name}"
 done
+
 $influx_cmd "select last(jobid)${field_clause} from lustre2 where time > now() - ${timespan} group by jobid,\"name\""
