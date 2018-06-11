@@ -1,6 +1,6 @@
 timespan="1h"
 influx_cmd="influx -database telegraf -host influxdbhost -precision rfc3339 -execute"
-jobstats_fields="jobstats_open jobstats_close jobstats_getattr"
+jobstats_fields="jobstats_mknod jobstats_open jobstats_close jobstats_getattr jobstats_mkdir jobstats_rmdir"
 
 # MDT data
 #
@@ -11,6 +11,12 @@ jobstats_fields="jobstats_open jobstats_close jobstats_getattr"
 # successfive measurements, and it does not assume a 0 preceeds the first
 # measurement.  It's possible there is a query trick like a subselect, that can
 # alter this behavior.  Needs research.
+#
+# (2) Fill does not behave as expected below; missing data points may result in
+# the fill(X) argument not setting the aggregated field to the specified
+# non-nill value X.  See
+# https://docs.influxdata.com/influxdb/v1.5/query_language/data_exploration/#group-by-time-intervals-and-fill
+# and # https://github.com/influxdata/influxdb/issues/6967
 #
 # Notes:
 # Field "name" holds the name of the Lustre target from which the measurement
@@ -28,4 +34,4 @@ for raw_name in ${jobstats_fields}; do
   rate_name=$(echo $raw_name | sed "s/jobstats_//; s/$/_rate/")
   field_clause="${field_clause}, non_negative_derivative(${raw_name},1m) as ${rate_name}"
 done
-$influx_cmd "select last(jobid)${field_clause} from lustre2 where time > now() - ${timespan} group by \"name\"",jobid
+$influx_cmd "select last(jobid)${field_clause} from lustre2 where time > now() - ${timespan} group by \"name\",jobid fill(0)"
